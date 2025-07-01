@@ -1,10 +1,10 @@
-FROM ghcr.io/viswanathbalusu/megarestbase AS builder
+FROM python:3.9-slim AS builder
 
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
 
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY extract /usr/local/bin
 COPY pextract /usr/local/bin
