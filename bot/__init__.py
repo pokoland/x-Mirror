@@ -11,6 +11,7 @@ import json
 import aria2p
 import qbittorrentapi as qba
 import telegram.ext as tg
+from telegram import Bot  # Correction: importer Bot depuis telegram
 from dotenv import load_dotenv
 from pyrogram import Client
 from telegraph import Telegraph
@@ -449,8 +450,8 @@ if SEARCH_PLUGINS is not None:
     qbclient = get_client()
     qbclient.search_install_plugin(SEARCH_PLUGINS)
 
-# CORRECTION FINALE - Syntaxe complète avec les parenthèses correctes
+# CORRECTION DÉFINITIVE - Import correct de Bot
 request_kwargs = {'read_timeout': 30, 'connect_timeout': 15}
-updater = tg.Updater(bot=tg.Bot(token=BOT_TOKEN, request_kwargs=request_kwargs))
+updater = tg.Updater(bot=Bot(token=BOT_TOKEN, request_kwargs=request_kwargs))
 bot = updater.bot
 dispatcher = updater.dispatcher
