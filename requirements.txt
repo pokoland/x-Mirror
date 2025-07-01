@@ -5,6 +5,7 @@ appdirs
 attrdict
 beautifulsoup4
 cloudscraper
+cfscrape
 feedparser
 google-api-python-client
 google-auth-httplib2
