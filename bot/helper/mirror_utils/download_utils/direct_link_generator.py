@@ -17,14 +17,38 @@ from os import popen
 from random import choice
 from urllib.parse import urlparse
 
-import lk21
 import requests, cfscrape
 from bs4 import BeautifulSoup
 from js2py import EvalJs
-from lk21.extractors.bypasser import Bypass
 from base64 import standard_b64encode
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.ext_utils.exceptions import DirectDownloadLinkException
+
+# Patch pour lk21 (bypasser.py)
+try:
+    import lk21
+    from lk21.extractors.bypasser import Bypass
+
+    # Fonction de patch pour les URLs IPv6
+    def safe_urlparse(url):
+        try:
+            return urlparse(url)
+        except ValueError:
+            # Correction pour les URLs IPv6 mal formatées
+            if '[' in url and ']' not in url:
+                url = url.replace('[', '').replace(']', '')
+            return urlparse(url)
+
+    # Appliquer le patch
+    lk21.extractors.bypasser.urlparse = safe_urlparse
+    Bypass.urlparse = safe_urlparse
+
+except ImportError:
+    lk21 = None
+    LOGGER.warning("lk21 n'est pas installé, certaines fonctionnalités seront désactivées")
+except Exception as e:
+    LOGGER.error(f"Erreur lors du chargement de lk21: {str(e)}")
+    lk21 = None
 
 
 def direct_link_generator(link: str):
@@ -203,25 +227,25 @@ def github(url: str) -> str:
 
 
 def hxfile(url: str) -> str:
-    """ Hxfile direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
+    """ Hxfile direct link generator """
+    if not lk21:
+        raise DirectDownloadLinkException("lk21 non disponible")
     bypasser = lk21.Bypass()
     return bypasser.bypass_filesIm(url)
 
 
 def anonfiles(url: str) -> str:
-    """ Anonfiles direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
+    """ Anonfiles direct link generator """
+    if not lk21:
+        raise DirectDownloadLinkException("lk21 non disponible")
     bypasser = lk21.Bypass()
     return bypasser.bypass_anonfiles(url)
 
 
 def letsupload(url: str) -> str:
-    """ Letsupload direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
+    """ Letsupload direct link generator """
+    if not lk21:
+        raise DirectDownloadLinkException("lk21 non disponible")
     dl_url = ''
     try:
         link = re.findall(r'\bhttps?://.*letsupload\.io\S+', url)[0]
@@ -233,9 +257,9 @@ def letsupload(url: str) -> str:
 
 
 def fembed(link: str) -> str:
-    """ Fembed direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
+    """ Fembed direct link generator """
+    if not lk21:
+        raise DirectDownloadLinkException("lk21 non disponible")
     bypasser = lk21.Bypass()
     dl_url=bypasser.bypass_fembed(link)
     count = len(dl_url)
@@ -244,9 +268,9 @@ def fembed(link: str) -> str:
 
 
 def sbembed(link: str) -> str:
-    """ Sbembed direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
+    """ Sbembed direct link generator """
+    if not lk21:
+        raise DirectDownloadLinkException("lk21 non disponible")
     bypasser = lk21.Bypass()
     dl_url=bypasser.bypass_sbembed(link)
     count = len(dl_url)
@@ -283,17 +307,17 @@ def pixeldrain(url: str) -> str:
 
 
 def antfiles(url: str) -> str:
-    """ Antfiles direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
+    """ Antfiles direct link generator """
+    if not lk21:
+        raise DirectDownloadLinkException("lk21 non disponible")
     bypasser = lk21.Bypass()
     return bypasser.bypass_antfiles(url)
 
 
 def streamtape(url: str) -> str:
-    """ Streamtape direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
+    """ Streamtape direct link generator """
+    if not lk21:
+        raise DirectDownloadLinkException("lk21 non disponible")
     bypasser = lk21.Bypass()
     return bypasser.bypass_streamtape(url)
 
