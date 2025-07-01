@@ -11,7 +11,7 @@ import json
 import aria2p
 import qbittorrentapi as qba
 import telegram.ext as tg
-from telegram.ext import ApplicationBuilder 
+from telegram.ext import ApplicationBuilder
 from dotenv import load_dotenv
 from pyrogram import Client
 from telegraph import Telegraph
@@ -459,7 +459,7 @@ application = (
 # Pour maintenir la compatibilité avec le code existant
 bot = application.bot
 dispatcher = application
-updater = application()
+updater = application
 # NOTE: Dans le reste du code, vous devrez remplacer:
 # updater.start_polling() par application.run_polling()
 # updater.idle() par application.idle()
