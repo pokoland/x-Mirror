@@ -13,9 +13,9 @@ import qbittorrentapi as qba
 from urllib.parse import urlparse, parse_qs
 from torrentool.api import Torrent
 from telegram import InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler
+from telegram.ext import CallbackQueryHandler, filters
 
-from bot import download_dict, download_dict_lock, BASE_URL, dispatcher, get_client, TORRENT_DIRECT_LIMIT, ZIP_UNZIP_LIMIT, STOP_DUPLICATE
+from bot import download_dict, download_dict_lock, BASE_URL, application, get_client, TORRENT_DIRECT_LIMIT, ZIP_UNZIP_LIMIT, STOP_DUPLICATE
 from bot.helper.mirror_utils.status_utils.qbit_download_status import QbDownloadStatus
 from bot.helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from bot.helper.telegram_helper.message_utils import *
@@ -28,7 +28,6 @@ logging.getLogger('requests').setLevel(logging.ERROR)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 class QbitTorrent:
-
 
     def __init__(self):
         self.update_interval = 2
@@ -135,7 +134,6 @@ class QbitTorrent:
             sendMessage(str(e), listener.bot, listener.update)
             self.client.auth_log_out()
 
-
     def update(self):
         tor_info = self.client.torrents_info(torrent_hashes=self.ext_hash)
         if len(tor_info) == 0:
@@ -194,7 +192,7 @@ class QbitTorrent:
                             self.listener.onDownloadError(f"{mssg}.\nYour File/Folder size is {get_readable_file_size(size)}")
                             self.client.torrents_delete(torrent_hashes=self.ext_hash)
                             self.client.auth_log_out()
-                            self.updater.cancel()     
+                            self.updater.cancel()
                     self.sizechecked = True
             elif tor_info.state == "stalledDL":
                 if time.time() - self.stalled_time >= 999999999: # timeout after downloading metadata
@@ -232,8 +230,7 @@ class QbitTorrent:
             self.client.auth_log_out()
             self.updater.cancel()
 
-
-def get_confirm(update, context):
+def get_confirm(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
@@ -242,7 +239,6 @@ def get_confirm(update, context):
     if qdl is None:
         query.answer(text="This task has been cancelled!", show_alert=True)
         query.message.delete()
-
     elif user_id != qdl.listener.message.from_user.id:
         query.answer(text="Don't waste your time!", show_alert=True)
     elif data[0] == "pin":
@@ -252,7 +248,6 @@ def get_confirm(update, context):
         qdl.client.torrents_resume(torrent_hashes=data[2])
         sendStatusMessage(qdl.listener.update, qdl.listener.bot)
         query.message.delete()
-
 
 def get_hash_magnet(mgt):
     if mgt.startswith('magnet:'):
@@ -269,14 +264,11 @@ def get_hash_magnet(mgt):
     mgt = v[len('urn:btih:'):]
     return mgt.lower()
 
-
 def get_hash_file(path):
     tr = Torrent.from_file(path)
     mgt = tr.magnet_link
     return get_hash_magnet(mgt)
 
-
-pin_handler = CallbackQueryHandler(get_confirm, pattern="pin", run_async=True)
-done_handler = CallbackQueryHandler(get_confirm, pattern="done", run_async=True)
-dispatcher.add_handler(pin_handler)
-dispatcher.add_handler(done_handler)
+# Register handlers with the application
+application.add_handler(CallbackQueryHandler(get_confirm, pattern="^pin"))
+application.add_handler(CallbackQueryHandler(get_confirm, pattern="^done"))
