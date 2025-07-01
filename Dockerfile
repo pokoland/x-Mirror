@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     aria2 \
     qbittorrent-nox \
+    libmagic1 \
+    libmagic-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup qBittorrent
@@ -16,7 +18,7 @@ RUN mkdir -p /root/.local/share/qBittorrent && \
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt pymongo  # Ajout de pymongo
+RUN pip install --no-cache-dir -r requirements.txt pymongo
 
 # Copy application files
 COPY . .
