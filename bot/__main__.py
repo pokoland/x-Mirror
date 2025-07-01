@@ -233,6 +233,8 @@ async def main():
 
     # Démarrer le bot
     await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
     LOGGER.info("Bot démarré !")
 
     # Gestion des signaux
@@ -242,8 +244,9 @@ async def main():
     await idle()
 
     # Arrêt propre
+    await application.updater.stop()
     await application.stop()
-    await app.stop()
+    await application.shutdown()
 
 if __name__ == '__main__':
     try:
