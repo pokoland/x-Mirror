@@ -1,6 +1,6 @@
 from telegram import InlineKeyboardMarkup
 from telegram import Message
-from telegram.update import Update
+from telegram import Update
 import psutil, shutil
 import time
 from bot import AUTO_DELETE_MESSAGE_DURATION, LOGGER, bot, \
