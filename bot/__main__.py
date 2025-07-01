@@ -6,7 +6,7 @@ import asyncio
 from pyrogram import idle
 from sys import executable
 
-from telegram import ParseMode
+from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 from telegraph import Telegraph
 from wserver import start_server_async
