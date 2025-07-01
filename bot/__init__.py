@@ -448,7 +448,9 @@ if SEARCH_PLUGINS is not None:
     SEARCH_PLUGINS = json.loads(SEARCH_PLUGINS)
     qbclient = get_client()
     qbclient.search_install_plugin(SEARCH_PLUGINS)
-BOT_TOKEN = getConfig('BOT_TOKEN')
-updater = tg.Updater(token=BOT_TOKEN, request_kwargs={'read_timeout': 30, 'connect_timeout': 15})
+
+# Correction de l'initialisation de Updater
+request_kwargs = {'read_timeout': 30, 'connect_timeout': 15}
+updater = tg.Updater(bot=tg.Bot(token=BOT_TOKEN, request_kwargs=request_kwargs))
 bot = updater.bot
 dispatcher = updater.dispatcher
