@@ -187,31 +187,29 @@ async def bot_help(update, context):
     await sendMarkup(help_string, context.bot, update, reply_markup)
 
 async def main():
+    # Initialisation de l'application
     fs_utils.start_cleanup()
 
     if IS_VPS:
         await start_server_async(PORT)
 
-    # Vérifier si le bot redémarre
+    # Vérification du redémarrage
     if os.path.isfile(".restartmsg"):
         with open(".restartmsg") as f:
             chat_id, msg_id = map(int, f)
-        await bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id)
+        await application.bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id)
         os.remove(".restartmsg")
     elif OWNER_ID:
         try:
             text = "<b>Bot redémarré !</b>"
-            await bot.send_message(chat_id=OWNER_ID, text=text, parse_mode=ParseMode.HTML)
+            await application.bot.send_message(chat_id=OWNER_ID, text=text, parse_mode=ParseMode.HTML)
             if AUTHORIZED_CHATS:
                 for i in AUTHORIZED_CHATS:
-                    await bot.send_message(chat_id=i, text=text, parse_mode=ParseMode.HTML)
+                    await application.bot.send_message(chat_id=i, text=text, parse_mode=ParseMode.HTML)
         except Exception as e:
             LOGGER.warning(e)
 
-    # Démarrer Pyrogram
-    await app.start()
-
-    # Configurer les handlers
+    # Configuration des handlers
     start_handler = CommandHandler(BotCommands.StartCommand, start)
     ping_handler = CommandHandler(BotCommands.PingCommand, ping,
                                 filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
@@ -231,27 +229,38 @@ async def main():
     application.add_handler(stats_handler)
     application.add_handler(log_handler)
 
-    # Démarrer le bot
+    # Démarrer Pyrogram dans la même boucle d'événements
+    await app.start()
+
+    # Démarrer le bot Telegram
     await application.initialize()
     await application.start()
-    await application.updater.start_polling()
-    LOGGER.info("Bot démarré !")
-
-    # Gestion des signaux
-    signal.signal(signal.SIGINT, fs_utils.exit_clean_up)
+    await application.updater.start_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+    LOGGER.info("Bot démarré et en écoute des commandes...")
 
     # Garder le bot en vie
-    await idle()
-
-    # Arrêt propre
-    await application.updater.stop()
-    await application.stop()
-    await application.shutdown()
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        # Arrêt propre
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+        await app.stop()
 
 if __name__ == '__main__':
+    # Création d'une nouvelle boucle d'événements
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     try:
-        asyncio.run(main())
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         LOGGER.info("Bot arrêté par l'utilisateur")
     except Exception as e:
         LOGGER.error(f"Erreur inattendue: {e}")
+    finally:
+        loop.close()
