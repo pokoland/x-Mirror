@@ -212,7 +212,7 @@ async def main():
     dispatcher.add_handler(help_handler)
     dispatcher.add_handler(stats_handler)
     dispatcher.add_handler(log_handler)
-    await dispatcher.start_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+    await dispatcher.run_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
     LOGGER.info("Bot démarré !")
     # Enregistrer le gestionnaire de signal
     signal.signal(signal.SIGINT, fs_utils.exit_clean_up)
