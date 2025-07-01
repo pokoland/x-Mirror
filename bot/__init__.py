@@ -452,6 +452,6 @@ if SEARCH_PLUGINS is not None:
 
 request_kwargs = {'read_timeout': 30, 'connect_timeout': 15}
 bot_instance = Bot(token=BOT_TOKEN)
-updater = tg.Updater(bot=bot_instance, use_context=True)
+updater = tg.Updater(bot=bot_instance)
 bot = updater.bot
 dispatcher = updater.dispatcher
