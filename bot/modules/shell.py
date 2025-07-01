@@ -1,11 +1,15 @@
 import subprocess
-from bot import LOGGER, dispatcher
-from telegram import ParseMode, Update
-from telegram.ext import CommandHandler, ContextTypes
-from bot.helper.telegram_helper.filters import CustomFilters
-from bot.helper.telegram_helper.bot_commands import BotCommands
+import asyncio  # Ajouté pour utiliser asyncio.create_subprocess_shell
 import tempfile
 import os
+
+from bot import LOGGER, application  # v20 utilise application au lieu de dispatcher
+from telegram import Update
+from telegram.constants import ParseMode
+from telegram.ext import CommandHandler, ContextTypes
+
+from bot.helper.telegram_helper.filters import CustomFilters
+from bot.helper.telegram_helper.bot_commands import BotCommands
 
 
 async def shell(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,4 +60,5 @@ shell_handler = CommandHandler(
     shell,
     filters=CustomFilters.owner_filter
 )
-dispatcher.add_handler(shell_handler)
+
+application.add_handler(shell_handler)  # Remplace dispatcher par application
