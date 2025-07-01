@@ -1,17 +1,22 @@
-import shutil, psutil
+import shutil
+import psutil
 import signal
 import os
 import asyncio
 import time
-
-from pyrogram import idle
 from sys import executable
 
+from pyrogram import idle
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler, Application
 from telegraph import Telegraph
 from wserver import start_server_async
-from bot import bot, app, dispatcher, botStartTime, IGNORE_PENDING_REQUESTS, IS_VPS, PORT, alive, web, nox, OWNER_ID, AUTHORIZED_CHATS, telegraph_token, LOGGER
+
+from bot import (
+    bot, app, dispatcher, botStartTime, IGNORE_PENDING_REQUESTS,
+    IS_VPS, PORT, alive, web, nox, OWNER_ID, AUTHORIZED_CHATS,
+    telegraph_token, LOGGER
+)
 from bot.helper.ext_utils import fs_utils
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper.message_utils import sendMessage, sendMarkup, editMessage, sendLogFile
@@ -19,9 +24,13 @@ from bot.helper.ext_utils.bot_utils import get_readable_file_size, get_readable_
 from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper import button_build
 from telegram import InlineKeyboardMarkup
-# Import des modules
-from .modules import authorize, list, cancel_mirror, mirror_status, mirror, clone, watch, shell, eval, delete, speedtest, count, leech_settings, search
 
+# Import des modules
+from bot.modules import (
+    authorize, list, cancel_mirror, mirror_status, mirror,
+    clone, watch, shell, eval, delete, speedtest,
+    count, leech_settings, search
+)
 
 async def stats(update, context):
     currentTime = get_readable_time(time.time() - botStartTime)
@@ -45,7 +54,6 @@ async def stats(update, context):
             f'<b>DISQUE :</b> <code>{disk}%</code>'
     await sendMessage(stats, context.bot, update)
 
-
 async def start(update, context):
     buttons = button_build.ButtonMaker()
     buttons.buildbutton("Repo", "https://www.github.com/anasty17/mirror-leech-telegram-bot")
@@ -62,7 +70,6 @@ Tapez /{BotCommands.HelpCommand} pour obtenir la liste des commandes disponibles
 
 async def restart(update, context):
     restart_message = await sendMessage("Redémarrage en cours...", context.bot, update)
-    # Sauvegarder le message de redémarrage pour y répondre après
     with open(".restartmsg", "w") as f:
         f.truncate(0)
         f.write(f"{restart_message.chat.id}\n{restart_message.message_id}\n")
@@ -75,13 +82,11 @@ async def restart(update, context):
     nox.kill()
     os.execl(executable, executable, "-m", "bot")
 
-
 async def ping(update, context):
     start_time = int(round(time.time() * 1000))
     reply = await sendMessage("Début du ping", context.bot, update)
     end_time = int(round(time.time() * 1000))
     await editMessage(f'{end_time - start_time} ms', reply)
-
 
 async def log(update, context):
     await sendLogFile(context.bot, update)
@@ -95,13 +100,13 @@ help_string_telegraph = f'''<br>
 <br><br>
 <b>/{BotCommands.UnzipMirrorCommand}</b> [lien_de_téléchargement][lien_magnet] : Copier et extraire les archives vers Google Drive
 <br><br>
-<b>/{BotCommands.QbMirrorCommand}</b> [lien_magnet] : Copier en utilisant qBittorrent, utilisez <b>/{BotCommands.QbMirrorCommand} s</b> pour sélectionner les fichiers
+<b>/{BotCommands.QbMirrorCommand}</b> [lien_magnet] : Copier en utilisant qBittorrent
 <br><br>
 <b>/{BotCommands.QbZipMirrorCommand}</b> [lien_magnet] : Copier en utilisant qBittorrent et compresser (.zip)
 <br><br>
 <b>/{BotCommands.QbUnzipMirrorCommand}</b> [lien_magnet] : Copier en utilisant qBittorrent et extraire les archives
 <br><br>
-<b>/{BotCommands.LeechCommand}</b> [lien_de_téléchargement][lien_magnet] : Télécharger vers Telegram, utilisez <b>/{BotCommands.LeechCommand} s</b> pour sélectionner les fichiers
+<b>/{BotCommands.LeechCommand}</b> [lien_de_téléchargement][lien_magnet] : Télécharger vers Telegram
 <br><br>
 <b>/{BotCommands.ZipLeechCommand}</b> [lien_de_téléchargement][lien_magnet] : Télécharger vers Telegram sous forme compressée (.zip)
 <br><br>
@@ -119,7 +124,7 @@ help_string_telegraph = f'''<br>
 <br><br>
 <b>/{BotCommands.DeleteCommand}</b> [lien_drive] : Supprimer un fichier de Google Drive (Propriétaire & Sudo uniquement)
 <br><br>
-<b>/{BotCommands.WatchCommand}</b> [lien_youtube-dl] : Copier via youtube-dl. Tapez <b>/{BotCommands.WatchCommand}</b> pour plus d'aide
+<b>/{BotCommands.WatchCommand}</b> [lien_youtube-dl] : Copier via youtube-dl
 <br><br>
 <b>/{BotCommands.ZipWatchCommand}</b> [lien_youtube-dl] : Copier via youtube-dl et compresser avant envoi
 <br><br>
@@ -143,6 +148,7 @@ help_string_telegraph = f'''<br>
 <br><br>
 <b>/{BotCommands.StatsCommand}</b> : Afficher les statistiques de la machine
 '''
+
 help = Telegraph(access_token=telegraph_token).create_page(
         title='Aide Mirrorbot',
         author_name='Mirrorbot',
@@ -182,8 +188,10 @@ async def bot_help(update, context):
 
 async def main():
     fs_utils.start_cleanup()
+
     if IS_VPS:
         await start_server_async(PORT)
+
     # Vérifier si le bot redémarre
     if os.path.isfile(".restartmsg"):
         with open(".restartmsg") as f:
@@ -199,27 +207,48 @@ async def main():
                     await bot.send_message(chat_id=i, text=text, parse_mode=ParseMode.HTML)
         except Exception as e:
             LOGGER.warning(e)
-    # Créer les handlers
+
+    # Démarrer Pyrogram
+    await app.start()
+
+    # Configurer les handlers
     start_handler = CommandHandler(BotCommands.StartCommand, start)
-    ping_handler = CommandHandler(BotCommands.PingCommand, ping, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
-    restart_handler = CommandHandler(BotCommands.RestartCommand, restart, filters=CustomFilters.owner_filter | CustomFilters.sudo_user)
-    help_handler = CommandHandler(BotCommands.HelpCommand, bot_help, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
-    stats_handler = CommandHandler(BotCommands.StatsCommand, stats, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
-    log_handler = CommandHandler(BotCommands.LogCommand, log, filters=CustomFilters.owner_filter | CustomFilters.sudo_user)
+    ping_handler = CommandHandler(BotCommands.PingCommand, ping,
+                                filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
+    restart_handler = CommandHandler(BotCommands.RestartCommand, restart,
+                                   filters=CustomFilters.owner_filter | CustomFilters.sudo_user)
+    help_handler = CommandHandler(BotCommands.HelpCommand, bot_help,
+                                filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
+    stats_handler = CommandHandler(BotCommands.StatsCommand, stats,
+                                 filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
+    log_handler = CommandHandler(BotCommands.LogCommand, log,
+                               filters=CustomFilters.owner_filter | CustomFilters.sudo_user)
+
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(ping_handler)
     dispatcher.add_handler(restart_handler)
     dispatcher.add_handler(help_handler)
     dispatcher.add_handler(stats_handler)
     dispatcher.add_handler(log_handler)
-    await dispatcher.run_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+
+    # Démarrer le bot
+    await dispatcher.start()
     LOGGER.info("Bot démarré !")
-    # Enregistrer le gestionnaire de signal
+
+    # Gestion des signaux
     signal.signal(signal.SIGINT, fs_utils.exit_clean_up)
 
+    # Garder le bot en vie
+    await idle()
+
+    # Arrêt propre
+    await dispatcher.stop()
+    await app.stop()
+
 if __name__ == '__main__':
-    # Démarrer Pyrogram
-    app.start()
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
-    idle()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        LOGGER.info("Bot arrêté par l'utilisateur")
+    except Exception as e:
+        LOGGER.error(f"Erreur inattendue: {e}")
