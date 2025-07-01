@@ -12,6 +12,7 @@ import aria2p
 import qbittorrentapi as qba
 import telegram.ext as tg
 from telegram import Bot  # Import correct de Bot
+from telegram.ext import Updater
 from dotenv import load_dotenv
 from pyrogram import Client
 from telegraph import Telegraph
