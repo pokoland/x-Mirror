@@ -259,7 +259,7 @@ async def main():
     for signame in ('SIGINT', 'SIGTERM'):
         loop.add_signal_handler(
             getattr(signal, signame),
-            lambda: asyncio.create_task(shutdown(signame))
+            lambda: asyncio.create_task(shutdown(signame)))
 
     # Démarrer le serveur web
     if IS_VPS:
