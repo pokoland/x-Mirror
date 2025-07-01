@@ -2,25 +2,28 @@ import shutil, psutil
 import signal
 import os
 import asyncio
+import time
 
 from pyrogram import idle
 from sys import executable
 
 from telegram.constants import ParseMode
-from telegram.ext import CommandHandler
+from telegram.ext import CommandHandler, Application
 from telegraph import Telegraph
 from wserver import start_server_async
-from bot import bot, app, dispatcher, updater, botStartTime, IGNORE_PENDING_REQUESTS, IS_VPS, PORT, alive, web, nox, OWNER_ID, AUTHORIZED_CHATS, telegraph_token
+from bot import bot, app, dispatcher, botStartTime, IGNORE_PENDING_REQUESTS, IS_VPS, PORT, alive, web, nox, OWNER_ID, AUTHORIZED_CHATS, telegraph_token, LOGGER
 from bot.helper.ext_utils import fs_utils
 from bot.helper.telegram_helper.bot_commands import BotCommands
-from bot.helper.telegram_helper.message_utils import *
-from .helper.ext_utils.bot_utils import get_readable_file_size, get_readable_time
-from .helper.telegram_helper.filters import CustomFilters
+from bot.helper.telegram_helper.message_utils import sendMessage, sendMarkup, editMessage, sendLogFile
+from bot.helper.ext_utils.bot_utils import get_readable_file_size, get_readable_time
+from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper import button_build
+from telegram import InlineKeyboardMarkup
+# Import des modules
 from .modules import authorize, list, cancel_mirror, mirror_status, mirror, clone, watch, shell, eval, delete, speedtest, count, leech_settings, search
 
 
-def stats(update, context):
+async def stats(update, context):
     currentTime = get_readable_time(time.time() - botStartTime)
     total, used, free = shutil.disk_usage('.')
     total = get_readable_file_size(total)
@@ -33,17 +36,17 @@ def stats(update, context):
     disk = psutil.disk_usage('/').percent
     stats = f'<b>Durée de fonctionnement du bot :</b> <code>{currentTime}</code>\n' \
             f'<b>Espace disque total :</b> <code>{total}</code>\n' \
-            f'<b>Utilisé :</b> <code>{used}</code>' \
+            f'<b>Utilisé :</b> <code>{used}</code>\n' \
             f'<b>Libre :</b> <code>{free}</code>\n\n' \
             f'<b>Upload :</b> <code>{sent}</code>\n' \
             f'<b>Download :</b> <code>{recv}</code>\n\n' \
-            f'<b>CPU :</b> <code>{cpuUsage}%</code>' \
-            f'<b>RAM :</b> <code>{memory}%</code>' \
+            f'<b>CPU :</b> <code>{cpuUsage}%</code>\n' \
+            f'<b>RAM :</b> <code>{memory}%</code>\n' \
             f'<b>DISQUE :</b> <code>{disk}%</code>'
-    sendMessage(stats, context.bot, update)
+    await sendMessage(stats, context.bot, update)
 
 
-def start(update, context):
+async def start(update, context):
     buttons = button_build.ButtonMaker()
     buttons.buildbutton("Repo", "https://www.github.com/anasty17/mirror-leech-telegram-bot")
     buttons.buildbutton("Groupe", "https://t.me/mirrorLeechTelegramBot")
@@ -53,12 +56,12 @@ def start(update, context):
 Ce bot peut copier tous vos liens vers Google Drive !
 Tapez /{BotCommands.HelpCommand} pour obtenir la liste des commandes disponibles
 '''
-        sendMarkup(start_string, context.bot, update, reply_markup)
+        await sendMarkup(start_string, context.bot, update, reply_markup)
     else:
-        sendMarkup('Utilisateur non autorisé', context.bot, update, reply_markup)
+        await sendMarkup('Utilisateur non autorisé', context.bot, update, reply_markup)
 
-def restart(update, context):
-    restart_message = sendMessage("Redémarrage en cours...", context.bot, update)
+async def restart(update, context):
+    restart_message = await sendMessage("Redémarrage en cours...", context.bot, update)
     # Sauvegarder le message de redémarrage pour y répondre après
     with open(".restartmsg", "w") as f:
         f.truncate(0)
@@ -73,16 +76,15 @@ def restart(update, context):
     os.execl(executable, executable, "-m", "bot")
 
 
-def ping(update, context):
+async def ping(update, context):
     start_time = int(round(time.time() * 1000))
-    reply = sendMessage("Début du ping", context.bot, update)
+    reply = await sendMessage("Début du ping", context.bot, update)
     end_time = int(round(time.time() * 1000))
-    editMessage(f'{end_time - start_time} ms', reply)
+    await editMessage(f'{end_time - start_time} ms', reply)
 
 
-def log(update, context):
-    sendLogFile(context.bot, update)
-
+async def log(update, context):
+    await sendLogFile(context.bot, update)
 
 help_string_telegraph = f'''<br>
 <b>/{BotCommands.HelpCommand}</b> : Obtenir ce message d'aide
@@ -172,51 +174,52 @@ help_string = f'''
 /{BotCommands.ExecHelpCommand} : Aide pour le module Executor (Propriétaire uniquement)
 '''
 
-def bot_help(update, context):
+async def bot_help(update, context):
     button = button_build.ButtonMaker()
     button.buildbutton("Autres commandes", f"https://telegra.ph/{help}")
     reply_markup = InlineKeyboardMarkup(button.build_menu(1))
-    sendMarkup(help_string, context.bot, update, reply_markup)
+    await sendMarkup(help_string, context.bot, update, reply_markup)
 
-def main():
+async def main():
     fs_utils.start_cleanup()
     if IS_VPS:
-        asyncio.get_event_loop().run_until_complete(start_server_async(PORT))
+        await start_server_async(PORT)
     # Vérifier si le bot redémarre
     if os.path.isfile(".restartmsg"):
         with open(".restartmsg") as f:
             chat_id, msg_id = map(int, f)
-        bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id)
+        await bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id)
         os.remove(".restartmsg")
     elif OWNER_ID:
         try:
             text = "<b>Bot redémarré !</b>"
-            bot.sendMessage(chat_id=OWNER_ID, text=text, parse_mode=ParseMode.HTML)
+            await bot.send_message(chat_id=OWNER_ID, text=text, parse_mode=ParseMode.HTML)
             if AUTHORIZED_CHATS:
                 for i in AUTHORIZED_CHATS:
-                    bot.sendMessage(chat_id=i, text=text, parse_mode=ParseMode.HTML)
+                    await bot.send_message(chat_id=i, text=text, parse_mode=ParseMode.HTML)
         except Exception as e:
             LOGGER.warning(e)
-    start_handler = CommandHandler(BotCommands.StartCommand, start, run_async=True)
-    ping_handler = CommandHandler(BotCommands.PingCommand, ping,
-                                  filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-    restart_handler = CommandHandler(BotCommands.RestartCommand, restart,
-                                     filters=CustomFilters.owner_filter | CustomFilters.sudo_user, run_async=True)
-    help_handler = CommandHandler(BotCommands.HelpCommand,
-                                  bot_help, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-    stats_handler = CommandHandler(BotCommands.StatsCommand,
-                                   stats, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-    log_handler = CommandHandler(BotCommands.LogCommand, log, filters=CustomFilters.owner_filter | CustomFilters.sudo_user, run_async=True)
+    # Créer les handlers
+    start_handler = CommandHandler(BotCommands.StartCommand, start)
+    ping_handler = CommandHandler(BotCommands.PingCommand, ping, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
+    restart_handler = CommandHandler(BotCommands.RestartCommand, restart, filters=CustomFilters.owner_filter | CustomFilters.sudo_user)
+    help_handler = CommandHandler(BotCommands.HelpCommand, bot_help, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
+    stats_handler = CommandHandler(BotCommands.StatsCommand, stats, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
+    log_handler = CommandHandler(BotCommands.LogCommand, log, filters=CustomFilters.owner_filter | CustomFilters.sudo_user)
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(ping_handler)
     dispatcher.add_handler(restart_handler)
     dispatcher.add_handler(help_handler)
     dispatcher.add_handler(stats_handler)
     dispatcher.add_handler(log_handler)
-    updater.run_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+    await dispatcher.start_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
     LOGGER.info("Bot démarré !")
+    # Enregistrer le gestionnaire de signal
     signal.signal(signal.SIGINT, fs_utils.exit_clean_up)
 
-app.start()
-main()
-idle()
+if __name__ == '__main__':
+    # Démarrer Pyrogram
+    app.start()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+    idle()
