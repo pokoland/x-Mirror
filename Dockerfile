@@ -3,24 +3,25 @@ FROM python:3.9-slim
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
 
-# Installer les dépendances système
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     aria2 \
     qbittorrent-nox \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer les dépendances Python
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Setup qBittorrent
+RUN mkdir -p /root/.local/share/qBittorrent && \
+    chmod -R 777 /root/.local
 
-# Copier les fichiers de l'application
-COPY extract /usr/local/bin
-COPY pextract /usr/local/bin
-RUN chmod +x /usr/local/bin/extract && chmod +x /usr/local/bin/pextract
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt pymongo  # Ajout de pymongo
+
+# Copy application files
 COPY . .
 COPY .netrc /root/.netrc
-RUN chmod 600 /usr/src/app/.netrc
+RUN chmod 600 /root/.netrc
 RUN chmod +x aria.sh
 
-CMD ["bash","start.sh"]
+CMD ["bash", "start.sh"]
