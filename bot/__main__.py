@@ -16,7 +16,7 @@ from wserver import start_server_async
 from bot import (
     bot, app, application, botStartTime, IGNORE_PENDING_REQUESTS,
     IS_VPS, PORT, alive, web, nox, OWNER_ID, AUTHORIZED_CHATS,
-    telegraph_token, LOGGER, server
+    telegraph_token, LOGGER
 )
 from bot.helper.ext_utils import fs_utils
 from bot.helper.telegram_helper.bot_commands import BotCommands
@@ -32,6 +32,9 @@ from bot.modules import (
     clone, watch, shell, eval, delete, speedtest,
     count, leech_settings, search
 )
+
+# Variable globale pour le serveur
+web_server = None
 
 async def stats(update, context):
     currentTime = get_readable_time(time.time() - botStartTime)
@@ -89,9 +92,10 @@ async def restart(update, context):
     await app.stop()
 
     # Fermer le serveur web si existant
-    if IS_VPS and server:
-        server.close()
-        await server.wait_closed()
+    global web_server
+    if IS_VPS and web_server:
+        web_server.close()
+        await web_server.wait_closed()
 
     os.execl(executable, executable, "-m", "bot")
 
@@ -214,21 +218,24 @@ async def shutdown(signame=None):
     LOGGER.info(f"Reçu signal {signame}, arrêt en cours...")
 
     # Arrêt du bot Telegram
-    if application.updater.running:
+    if application.updater and application.updater.running:
         await application.updater.stop()
     await application.stop()
     await application.shutdown()
 
     # Arrêt de Pyrogram
-    await app.stop()
+    if app.is_initialized:
+        await app.stop()
 
     # Fermer le serveur web
-    if IS_VPS and server:
-        server.close()
-        await server.wait_closed()
+    global web_server
+    if IS_VPS and web_server:
+        web_server.close()
+        await web_server.wait_closed()
 
     # Arrêt des autres processus
-    alive.kill()
+    if alive:
+        alive.kill()
     if web:
         try:
             process = psutil.Process(web.pid)
@@ -237,7 +244,8 @@ async def shutdown(signame=None):
             process.kill()
         except:
             pass
-    nox.kill()
+    if nox:
+        nox.kill()
 
     # Annuler toutes les tâches asyncio
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
@@ -249,21 +257,22 @@ async def shutdown(signame=None):
     sys.exit(0)
 
 async def main():
-    global server
+    global web_server
 
     # Initialisation de l'application
     fs_utils.start_cleanup()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # Gestion des signaux
     for signame in ('SIGINT', 'SIGTERM'):
         loop.add_signal_handler(
             getattr(signal, signame),
-            lambda: asyncio.create_task(shutdown(signame)))
+            lambda s=signame: asyncio.create_task(shutdown(s))
+        )
 
     # Démarrer le serveur web
     if IS_VPS:
-        server = await start_server_async(PORT)
+        web_server = await start_server_async(PORT)
         LOGGER.info(f"Serveur web démarré sur le port {PORT}")
 
     # Vérification du redémarrage
