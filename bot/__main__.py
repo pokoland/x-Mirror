@@ -4,6 +4,7 @@ import signal
 import os
 import asyncio
 import time
+import sys
 from sys import executable
 
 from pyrogram import idle
@@ -15,7 +16,7 @@ from wserver import start_server_async
 from bot import (
     bot, app, application, botStartTime, IGNORE_PENDING_REQUESTS,
     IS_VPS, PORT, alive, web, nox, OWNER_ID, AUTHORIZED_CHATS,
-    telegraph_token, LOGGER
+    telegraph_token, LOGGER, server
 )
 from bot.helper.ext_utils import fs_utils
 from bot.helper.telegram_helper.bot_commands import BotCommands
@@ -80,6 +81,18 @@ async def restart(update, context):
         proc.kill()
     process.kill()
     nox.kill()
+
+    # Arrêt propre avant redémarrage
+    await application.updater.stop()
+    await application.stop()
+    await application.shutdown()
+    await app.stop()
+
+    # Fermer le serveur web si existant
+    if IS_VPS and server:
+        server.close()
+        await server.wait_closed()
+
     os.execl(executable, executable, "-m", "bot")
 
 async def ping(update, context):
@@ -186,12 +199,72 @@ async def bot_help(update, context):
     reply_markup = InlineKeyboardMarkup(button.build_menu(1))
     await sendMarkup(help_string, context.bot, update, reply_markup)
 
+async def run_telegram_bot():
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+    LOGGER.info("Bot Telegram démarré")
+
+async def run_pyrogram_bot():
+    await app.start()
+    LOGGER.info("Pyrogram démarré")
+    await idle()
+
+async def shutdown(signame=None):
+    LOGGER.info(f"Reçu signal {signame}, arrêt en cours...")
+
+    # Arrêt du bot Telegram
+    if application.updater.running:
+        await application.updater.stop()
+    await application.stop()
+    await application.shutdown()
+
+    # Arrêt de Pyrogram
+    await app.stop()
+
+    # Fermer le serveur web
+    if IS_VPS and server:
+        server.close()
+        await server.wait_closed()
+
+    # Arrêt des autres processus
+    alive.kill()
+    if web:
+        try:
+            process = psutil.Process(web.pid)
+            for proc in process.children(recursive=True):
+                proc.kill()
+            process.kill()
+        except:
+            pass
+    nox.kill()
+
+    # Annuler toutes les tâches asyncio
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    LOGGER.info("Arrêt complet réussi")
+    sys.exit(0)
+
 async def main():
+    global server
+
     # Initialisation de l'application
     fs_utils.start_cleanup()
+    loop = asyncio.get_event_loop()
 
+    # Gestion des signaux
+    for signame in ('SIGINT', 'SIGTERM'):
+        loop.add_signal_handler(
+            getattr(signal, signame),
+            lambda: asyncio.create_task(shutdown(signame))
+
+    # Démarrer le serveur web
     if IS_VPS:
-        await start_server_async(PORT)
+        server = await start_server_async(PORT)
+        LOGGER.info(f"Serveur web démarré sur le port {PORT}")
 
     # Vérification du redémarrage
     if os.path.isfile(".restartmsg"):
@@ -229,27 +302,12 @@ async def main():
     application.add_handler(stats_handler)
     application.add_handler(log_handler)
 
-    # Démarrer Pyrogram dans la même boucle d'événements
-    await app.start()
+    # Démarrer les bots en parallèle
+    telegram_task = asyncio.create_task(run_telegram_bot())
+    pyrogram_task = asyncio.create_task(run_pyrogram_bot())
 
-    # Démarrer le bot Telegram
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
-    LOGGER.info("Bot démarré et en écoute des commandes...")
-
-    # Garder le bot en vie
-    try:
-        while True:
-            await asyncio.sleep(3600)
-    except asyncio.CancelledError:
-        pass
-    finally:
-        # Arrêt propre
-        await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
-        await app.stop()
+    # Attendre que les tâches se terminent
+    await asyncio.gather(telegram_task, pyrogram_task)
 
 if __name__ == '__main__':
     # Création d'une nouvelle boucle d'événements
@@ -263,4 +321,5 @@ if __name__ == '__main__':
     except Exception as e:
         LOGGER.error(f"Erreur inattendue: {e}")
     finally:
+        loop.run_until_complete(shutdown())
         loop.close()
