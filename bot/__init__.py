@@ -11,8 +11,7 @@ import json
 import aria2p
 import qbittorrentapi as qba
 import telegram.ext as tg
-from telegram import Bot  # Import correct de Bot
-from telegram.ext import Updater
+from telegram.ext import ApplicationBuilder  # Import spécifique pour ApplicationBuilder
 from dotenv import load_dotenv
 from pyrogram import Client
 from telegraph import Telegraph
@@ -451,7 +450,19 @@ if SEARCH_PLUGINS is not None:
     qbclient = get_client()
     qbclient.search_install_plugin(SEARCH_PLUGINS)
 
-bot_instance = Bot(token=BOT_TOKEN)
-updater = Updater(bot=bot_instance, request_kwargs={'read_timeout': 30, 'connect_timeout': 15})
-bot = updater.bot
-dispatcher = updater.dispatcher
+# SOLUTION FINALE - Utilisation de ApplicationBuilder
+request_kwargs = {'read_timeout': 30, 'connect_timeout': 15}
+application = (
+    ApplicationBuilder()
+    .token(BOT_TOKEN)
+    .request_kwargs(request_kwargs)
+    .build()
+)
+
+# Pour maintenir la compatibilité avec le code existant
+bot = application.bot
+dispatcher = application
+updater = application()
+# NOTE: Dans le reste du code, vous devrez remplacer:
+# updater.start_polling() par application.run_polling()
+# updater.idle() par application.idle()
