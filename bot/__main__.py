@@ -13,7 +13,7 @@ from telegraph import Telegraph
 from wserver import start_server_async
 
 from bot import (
-    bot, app, dispatcher, botStartTime, IGNORE_PENDING_REQUESTS,
+    bot, app, application, botStartTime, IGNORE_PENDING_REQUESTS,
     IS_VPS, PORT, alive, web, nox, OWNER_ID, AUTHORIZED_CHATS,
     telegraph_token, LOGGER
 )
@@ -224,15 +224,15 @@ async def main():
     log_handler = CommandHandler(BotCommands.LogCommand, log,
                                filters=CustomFilters.owner_filter | CustomFilters.sudo_user)
 
-    dispatcher.add_handler(start_handler)
-    dispatcher.add_handler(ping_handler)
-    dispatcher.add_handler(restart_handler)
-    dispatcher.add_handler(help_handler)
-    dispatcher.add_handler(stats_handler)
-    dispatcher.add_handler(log_handler)
+    application.add_handler(start_handler)
+    application.add_handler(ping_handler)
+    application.add_handler(restart_handler)
+    application.add_handler(help_handler)
+    application.add_handler(stats_handler)
+    application.add_handler(log_handler)
 
     # Démarrer le bot
-    await dispatcher.initialize()
+    await application.initialize()
     LOGGER.info("Bot démarré !")
 
     # Gestion des signaux
@@ -242,7 +242,7 @@ async def main():
     await idle()
 
     # Arrêt propre
-    await dispatcher.stop()
+    await application.stop()
     await app.stop()
 
 if __name__ == '__main__':
