@@ -232,7 +232,7 @@ async def main():
     dispatcher.add_handler(log_handler)
 
     # Démarrer le bot
-    await dispatcher.start()
+    await dispatcher.initialize()
     LOGGER.info("Bot démarré !")
 
     # Gestion des signaux
