@@ -17,12 +17,13 @@ from os import popen
 from random import choice
 from urllib.parse import urlparse
 
-import requests, cfscrape
+import requests
 from bs4 import BeautifulSoup
 from js2py import EvalJs
 from base64 import standard_b64encode
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.ext_utils.exceptions import DirectDownloadLinkException
+import cloudscraper
 
 # Patch pour lk21 (bypasser.py)
 try:
@@ -330,7 +331,7 @@ def racaty(url: str) -> str:
         link = re.findall(r'\bhttps?://.*racaty\.net\S+', url)[0]
     except IndexError:
         raise DirectDownloadLinkException("No Racaty links found\n")
-    scraper = cfscrape.create_scraper()
+    scraper =  cloudscraper.create_scraper()
     r = scraper.get(url)
     soup = BeautifulSoup(r.text, "lxml")
     op = soup.find("input", {"name": "op"})["value"]

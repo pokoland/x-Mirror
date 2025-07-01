@@ -5,7 +5,6 @@ appdirs
 attrdict
 beautifulsoup4
 cloudscraper
-cfscrape
 feedparser
 google-api-python-client
 google-auth-httplib2
@@ -30,6 +29,6 @@ telegraph
 tenacity
 TgCrypto
 torrentool==1.1.0
-urllib3
 youtube_dl
 mega.py
+urllib3<2.0
