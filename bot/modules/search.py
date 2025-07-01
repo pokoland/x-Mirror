@@ -1,9 +1,9 @@
 import math
 import qbittorrentapi as qba
-from telegram import InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler, CommandHandler
+from telegram import InlineKeyboardMarkup, Update
+from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
-from bot import dispatcher, LOGGER, get_client, search_dict_lock, search_dict
+from bot import dispatcher, LOGGER, get_client, search_dict_lock, search_dict, application
 from bot.helper.telegram_helper.message_utils import editMessage, sendMessage
 from bot.helper.ext_utils.bot_utils import new_thread, get_readable_file_size
 from bot.helper.telegram_helper.filters import CustomFilters
@@ -11,26 +11,31 @@ from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper import button_build
 
 
-@new_thread
-def search(update, context):
+@new_thread  # si new_thread est une fonction compatible async, sinon gérer autrement
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         key = update.message.text.split(" ", maxsplit=1)[1]
         client = get_client()
         search = client.search_start(pattern=str(key), plugins='all', category='all')
-        srchmsg = sendMessage("Recherche en cours...", context.bot, update)
+        srchmsg = await sendMessage("Recherche en cours...", context.bot, update)
         user_id = update.message.from_user.id
         search_id = search.id
         LOGGER.info(f"Recherche qBittorrent : {key}")
+
+        # Poller le status de recherche
         while True:
             result_status = client.search_status(search_id=search_id)
             status = result_status[0].status
             if status != 'Running':
                 break
+            await asyncio.sleep(1)  # pause pour ne pas bloquer la boucle
+
         dict_search_results = client.search_results(search_id=search_id)
         search_results = dict_search_results.results
         total_results = dict_search_results.total
+
         if total_results != 0:
-            total_pages = math.ceil(total_results/3)
+            total_pages = math.ceil(total_results / 3)
             msg = getResult(search_results)
             buttons = button_build.ButtonMaker()
             if total_results > 3:
@@ -39,32 +44,37 @@ def search(update, context):
                 buttons.sbutton("Suivant", f"srchnext {user_id} {search_id}")
             buttons.sbutton("Fermer", f"closesrch {user_id} {search_id}")
             button = InlineKeyboardMarkup(buttons.build_menu(2))
-            editMessage(msg, srchmsg, button)
-            with search_dict_lock:
-                search_dict[search_id] = client, search_results, total_results, total_pages, 1, 0
+            await editMessage(msg, srchmsg, button)
+            async with search_dict_lock:
+                search_dict[search_id] = (client, search_results, total_results, total_pages, 1, 0)
         else:
-            editMessage(f"Aucun résultat trouvé pour <i>{key}</i>", srchmsg)
+            await editMessage(f"Aucun résultat trouvé pour <i>{key}</i>", srchmsg)
+
     except IndexError:
-        sendMessage("Veuillez envoyer un mot-clé de recherche avec la commande", context.bot, update)
+        await sendMessage("Veuillez envoyer un mot-clé de recherche avec la commande", context.bot, update)
     except Exception as e:
         LOGGER.error(str(e))
 
-def searchPages(update, context):
+
+async def searchPages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()
     user_id = query.from_user.id
-    data = query.data
-    data = data.split(" ")
+    data = query.data.split(" ")
     search_id = int(data[2])
+
     if user_id != int(data[1]):
-        query.answer(text="Ce n'est pas pour vous !", show_alert=True)
+        await query.answer(text="Ce n'est pas pour vous !", show_alert=True)
         return
-    with search_dict_lock:
+
+    async with search_dict_lock:
         try:
             client, search_results, total_results, total_pages, pageNo, start = search_dict[search_id]
-        except:
-            query.answer(text="Résultat expiré", show_alert=True)
-            query.message.delete()
+        except KeyError:
+            await query.answer(text="Résultat expiré", show_alert=True)
+            await query.message.delete()
             return
+
     if data[0] == "srchnext":
         if pageNo == total_pages:
             start = 0
@@ -75,22 +85,21 @@ def searchPages(update, context):
     elif data[0] == "srchprev":
         if pageNo == 1:
             pageNo = total_pages
-            start = 3 * (total_pages -1)
+            start = 3 * (total_pages - 1)
         else:
             pageNo -= 1
             start -= 3
     elif data[0] == "closesrch":
         client.search_delete(search_id)
         client.auth_log_out()
-        with search_dict_lock:
-            try:
-                del search_dict[search_id]
-            except:
-                pass
-        query.message.delete()
+        async with search_dict_lock:
+            search_dict.pop(search_id, None)
+        await query.message.delete()
         return
-    with search_dict_lock:
-        search_dict[search_id] = client, search_results, total_results, total_pages, pageNo, start
+
+    async with search_dict_lock:
+        search_dict[search_id] = (client, search_results, total_results, total_pages, pageNo, start)
+
     msg = getResult(search_results, start=start)
     msg += f"<b>Pages : </b>{pageNo}/{total_pages} | <b>Résultats : </b>{total_results}"
     buttons = button_build.ButtonMaker()
@@ -98,8 +107,8 @@ def searchPages(update, context):
     buttons.sbutton("Suivant", f"srchnext {user_id} {search_id}")
     buttons.sbutton("Fermer", f"closesrch {user_id} {search_id}")
     button = InlineKeyboardMarkup(buttons.build_menu(2))
-    query.answer()
-    editMessage(msg, query.message, button)
+    await editMessage(msg, query.message, button)
+
 
 def getResult(search_results, start=0):
     msg = ""
@@ -113,11 +122,23 @@ def getResult(search_results, start=0):
     return msg
 
 
-search_handler = CommandHandler(BotCommands.SearchCommand, search, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-srchnext_handler = CallbackQueryHandler(searchPages, pattern="srchnext", run_async=True)
-srchprevious_handler = CallbackQueryHandler(searchPages, pattern="srchprev", run_async=True)
-delsrch_handler = CallbackQueryHandler(searchPages, pattern="closesrch", run_async=True)
-dispatcher.add_handler(search_handler)
-dispatcher.add_handler(srchnext_handler)
-dispatcher.add_handler(srchprevious_handler)
-dispatcher.add_handler(delsrch_handler)
+application.add_handler(CommandHandler(
+    BotCommands.SearchCommand,
+    search,
+    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user
+))
+
+application.add_handler(CallbackQueryHandler(
+    searchPages,
+    pattern="srchnext"
+))
+
+application.add_handler(CallbackQueryHandler(
+    searchPages,
+    pattern="srchprev"
+))
+
+application.add_handler(CallbackQueryHandler(
+    searchPages,
+    pattern="closesrch"
+))

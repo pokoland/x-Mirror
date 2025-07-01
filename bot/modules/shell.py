@@ -1,43 +1,59 @@
 import subprocess
 from bot import LOGGER, dispatcher
-from telegram import ParseMode
-from telegram.ext import CommandHandler
+from telegram import ParseMode, Update
+from telegram.ext import CommandHandler, ContextTypes
 from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper.bot_commands import BotCommands
+import tempfile
+import os
 
 
-def shell(update, context):
+async def shell(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
     cmd = message.text.split(' ', 1)
     if len(cmd) == 1:
-        message.reply_text("Aucune commande à exécuter n'a été donnée.")
+        await message.reply_text("Aucune commande à exécuter n'a été donnée.")
         return
+
     cmd = cmd[1]
-    process = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    stdout, stderr = process.communicate()
+    # Exécuter la commande shell de façon non bloquante
+    process = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    stdout = stdout.decode().strip()
+    stderr = stderr.decode().strip()
+
     reply = ''
-    stderr = stderr.decode()
-    stdout = stdout.decode()
     if stdout:
         reply += f"*Sortie standard*\n`{stdout}`\n"
         LOGGER.info(f"Shell - {cmd} - {stdout}")
     if stderr:
         reply += f"*Erreur standard*\n`{stderr}`\n"
         LOGGER.error(f"Shell - {cmd} - {stderr}")
+
     if len(reply) > 3000:
-        with open('shell_output.txt', 'w') as file:
-            file.write(reply)
-        with open('shell_output.txt', 'rb') as doc:
-            context.bot.send_document(
-                document=doc,
-                filename=doc.name,
-                reply_to_message_id=message.message_id,
-                chat_id=message.chat_id)
+        # Écrire la sortie dans un fichier temporaire et l'envoyer
+        with tempfile.NamedTemporaryFile('w+', delete=False, suffix='.txt') as tmp_file:
+            tmp_file.write(reply)
+            tmp_filepath = tmp_file.name
+
+        await context.bot.send_document(
+            chat_id=message.chat_id,
+            document=open(tmp_filepath, 'rb'),
+            filename=os.path.basename(tmp_filepath),
+            reply_to_message_id=message.message_id
+        )
+        os.remove(tmp_filepath)
     else:
-        message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
+        await message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
 
 
-SHELL_HANDLER = CommandHandler(BotCommands.ShellCommand, shell,
-                              filters=CustomFilters.owner_filter, run_async=True)
-dispatcher.add_handler(SHELL_HANDLER)
+shell_handler = CommandHandler(
+    BotCommands.ShellCommand,
+    shell,
+    filters=CustomFilters.owner_filter
+)
+dispatcher.add_handler(shell_handler)

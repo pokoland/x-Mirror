@@ -2,32 +2,34 @@
 # (c) https://github.com/SlamDevs/slam-mirrorbot
 # Tous droits réservés
 
-from telegram.ext import CommandHandler
+from telegram.ext import CommandHandler, ContextTypes
+from telegram import Update
 from bot.helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from bot.helper.telegram_helper.message_utils import deleteMessage, sendMessage
 from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper.bot_commands import BotCommands
-from bot import dispatcher
+from bot import application
 
 
-def countNode(update, context):
+async def countNode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = update.message.text.split(" ", maxsplit=1)
     if len(args) > 1:
         link = args[1]
-        msg = sendMessage(f"Comptage : <code>{link}</code>", context.bot, update)
+        msg = await sendMessage(f"Comptage : <code>{link}</code>", context.bot, update)
         gd = GoogleDriveHelper()
         result = gd.count(link)
-        deleteMessage(context.bot, msg)
-        if update.message.from_user.username:
-            uname = f'@{update.message.from_user.username}'
-        else:
-            uname = f'<a href="tg://user?id={update.message.from_user.id}">{update.message.from_user.first_name}</a>'
-        if uname is not None:
-            cc = f'\n\n<b>cc : </b>{uname}'
-        sendMessage(result + cc, context.bot, update)
+        await deleteMessage(context.bot, msg)
+
+        uname = f'@{update.message.from_user.username}' if update.message.from_user.username else f'<a href="tg://user?id={update.message.from_user.id}">{update.message.from_user.first_name}</a>'
+        cc = f'\n\n<b>cc : </b>{uname}'
+
+        await sendMessage(result + cc, context.bot, update)
     else:
-        sendMessage("Veuillez fournir un lien partageable Google Drive à compter.", context.bot, update)
+        await sendMessage("Veuillez fournir un lien partageable Google Drive à compter.", context.bot, update)
 
 
-count_handler = CommandHandler(BotCommands.CountCommand, countNode, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-dispatcher.add_handler(count_handler)
+application.add_handler(CommandHandler(
+    BotCommands.CountCommand,
+    countNode,
+    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user
+))

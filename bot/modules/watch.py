@@ -1,15 +1,14 @@
+import threading
 from telegram.ext import CommandHandler
-from telegram import Bot, Update
 from bot import DOWNLOAD_DIR, dispatcher, LOGGER
 from bot.helper.telegram_helper.message_utils import sendMessage, sendStatusMessage
 from .mirror import MirrorListener
 from bot.helper.mirror_utils.download_utils.youtube_dl_download_helper import YoutubeDLHelper
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper.filters import CustomFilters
-import threading
 
 
-def _watch(bot: Bot, update, isZip=False, isLeech=False):
+def _watch(bot, update, isZip=False, isLeech=False):
     mssg = update.message.text
     message_args = mssg.split(' ')
     name_args = mssg.split('|')
@@ -26,49 +25,71 @@ def _watch(bot: Bot, update, isZip=False, isLeech=False):
         return
 
     try:
-      if "|" in mssg:
-        mssg = mssg.split("|")
-        qual = mssg[0].split(" ")[2]
-        if qual == "":
-          raise IndexError
-      else:
-        qual = message_args[2]
-      if qual != "audio":
-        qual = f'bestvideo[height<={qual}]+bestaudio/best[height<={qual}]'
+        if "|" in mssg:
+            mssg = mssg.split("|")
+            qual = mssg[0].split(" ")[2]
+            if qual == "":
+                raise IndexError
+        else:
+            qual = message_args[2]
+        if qual != "audio":
+            qual = f'bestvideo[height<={qual}]+bestaudio/best[height<={qual}]'
     except IndexError:
-      qual = "bestvideo+bestaudio/best"
+        qual = "bestvideo+bestaudio/best"
 
     try:
-      name = name_args[1]
+        name = name_args[1]
     except IndexError:
-      name = ""
+        name = ""
 
     pswd = ""
     listener = MirrorListener(bot, update, pswd, isZip, isLeech=isLeech)
     ydl = YoutubeDLHelper(listener)
-    threading.Thread(target=ydl.add_download,args=(link, f'{DOWNLOAD_DIR}{listener.uid}', qual, name)).start()
+
+    # Lance le téléchargement dans un thread pour ne pas bloquer
+    threading.Thread(target=ydl.add_download,
+                     args=(link, f'{DOWNLOAD_DIR}{listener.uid}', qual, name),
+                     daemon=True).start()
+
     sendStatusMessage(update, bot)
+
 
 def watch(update, context):
     _watch(context.bot, update)
 
+
 def watchZip(update, context):
     _watch(context.bot, update, True, True)
+
 
 def leechWatch(update, context):
     _watch(context.bot, update, isLeech=True)
 
-def leechWatchZip(update, context):
-    _watch(context.bot, update, True, True, True)
 
-watch_handler = CommandHandler(BotCommands.WatchCommand, watch,
-                                filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-zip_watch_handler = CommandHandler(BotCommands.ZipWatchCommand, watchZip,
-                                    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-leech_watch_handler = CommandHandler(BotCommands.LeechWatchCommand, leechWatch,
-                                filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
-leech_zip_watch_handler = CommandHandler(BotCommands.LeechZipWatchCommand, leechWatchZip,
-                                    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
+def leechWatchZip(update, context):
+    _watch(context.bot, update, True, True)
+
+
+watch_handler = CommandHandler(
+    BotCommands.WatchCommand,
+    watch,
+    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user
+)
+zip_watch_handler = CommandHandler(
+    BotCommands.ZipWatchCommand,
+    watchZip,
+    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user
+)
+leech_watch_handler = CommandHandler(
+    BotCommands.LeechWatchCommand,
+    leechWatch,
+    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user
+)
+leech_zip_watch_handler = CommandHandler(
+    BotCommands.LeechZipWatchCommand,
+    leechWatchZip,
+    filters=CustomFilters.authorized_chat | CustomFilters.authorized_user
+)
 
 dispatcher.add_handler(watch_handler)
 dispatcher.add_handler(zip_watch_handler)

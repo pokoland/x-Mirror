@@ -3,12 +3,14 @@ import os
 import textwrap
 import traceback
 from contextlib import redirect_stdout
+
+from telegram import Update, constants
+from telegram.ext import CommandHandler, ContextTypes
+
 from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper.message_utils import sendMessage
-from bot import LOGGER, dispatcher
-from telegram import ParseMode
-from telegram.ext import CommandHandler
+from bot import LOGGER, application
 
 namespaces = {}
 
@@ -23,39 +25,35 @@ def namespace_of(chat, update, bot):
             'effective_chat': update.effective_chat,
             'update': update
         }
-
     return namespaces[chat]
 
 
-def log_input(update):
+def log_input(update: Update):
     user = update.effective_user.id
     chat = update.effective_chat.id
-    LOGGER.info(
-        f"IN: {update.effective_message.text} (user={user}, chat={chat})")
+    LOGGER.info(f"IN: {update.effective_message.text} (user={user}, chat={chat})")
 
 
-def send(msg, bot, update):
+async def send(msg, update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(str(msg)) > 2000:
         with io.BytesIO(str.encode(msg)) as out_file:
             out_file.name = "output.txt"
-            bot.send_document(
+            await context.bot.send_document(
                 chat_id=update.effective_chat.id, document=out_file)
     else:
         LOGGER.info(f"OUT: '{msg}'")
-        bot.send_message(
+        await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=f"`{msg}`",
-            parse_mode=ParseMode.MARKDOWN)
+            parse_mode=constants.ParseMode.MARKDOWN)
 
 
-def evaluate(update, context):
-    bot = context.bot
-    send(do(eval, bot, update), bot, update)
+async def evaluate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await send(do(eval, update, context), update, context)
 
 
-def execute(update, context):
-    bot = context.bot
-    send(do(exec, bot, update), bot, update)
+async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await send(do(exec, update, context), update, context)
 
 
 def cleanup_code(code):
@@ -64,21 +62,17 @@ def cleanup_code(code):
     return code.strip('` \n')
 
 
-def do(func, bot, update):
+def do(func, update: Update, context: ContextTypes.DEFAULT_TYPE):
     log_input(update)
     content = update.message.text.split(' ', 1)[-1]
     body = cleanup_code(content)
-    env = namespace_of(update.message.chat_id, update, bot)
+    env = namespace_of(update.message.chat_id, update, context.bot)
 
     os.chdir(os.getcwd())
-    with open(
-            os.path.join(os.getcwd(),
-                         'bot/modules/temp.txt'),
-            'w') as temp:
+    with open(os.path.join(os.getcwd(), 'bot/modules/temp.txt'), 'w') as temp:
         temp.write(body)
 
     stdout = io.StringIO()
-
     to_compile = f'def func():\n{textwrap.indent(body, "  ")}'
 
     try:
@@ -86,11 +80,11 @@ def do(func, bot, update):
     except Exception as e:
         return f'{e.__class__.__name__}: {e}'
 
-    func = env['func']
+    func_ = env['func']
 
     try:
         with redirect_stdout(stdout):
-            func_return = func()
+            func_return = func_()
     except Exception as e:
         value = stdout.getvalue()
         return f'{value}{traceback.format_exc()}'
@@ -107,35 +101,37 @@ def do(func, bot, update):
                     pass
         else:
             result = f'{value}{func_return}'
-        if result:
-            return result
+        return result if result else "No output."
 
 
-def clear(update, context):
-    bot = context.bot
+async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     log_input(update)
     global namespaces
     if update.message.chat_id in namespaces:
         del namespaces[update.message.chat_id]
-    send("Cleared locals.", bot, update)
+    await send("Cleared locals.", update, context)
 
 
-def exechelp(update, context):
+async def exechelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_string = '''
 <b>Executor</b>
 • /eval <i>Run Python Code Line | Lines</i>
 • /exec <i>Run Commands In Exec</i>
 • /clearlocals <i>Cleared locals</i>
 '''
-    sendMessage(help_string, context.bot, update)
+    await sendMessage(help_string, context.bot, update)
 
 
-EVAL_HANDLER = CommandHandler(('eval'), evaluate, filters=CustomFilters.owner_filter, run_async=True)
-EXEC_HANDLER = CommandHandler(('exec'), execute, filters=CustomFilters.owner_filter, run_async=True)
-CLEAR_HANDLER = CommandHandler('clearlocals', clear, filters=CustomFilters.owner_filter, run_async=True)
-EXECHELP_HANDLER = CommandHandler(BotCommands.ExecHelpCommand, exechelp, filters=CustomFilters.owner_filter, run_async=True)
+# Handlers
 
-dispatcher.add_handler(EVAL_HANDLER)
-dispatcher.add_handler(EXEC_HANDLER)
-dispatcher.add_handler(CLEAR_HANDLER)
-dispatcher.add_handler(EXECHELP_HANDLER)
+application.add_handler(CommandHandler(
+    'eval', evaluate, filters=CustomFilters.owner_filter))
+
+application.add_handler(CommandHandler(
+    'exec', execute, filters=CustomFilters.owner_filter))
+
+application.add_handler(CommandHandler(
+    'clearlocals', clear, filters=CustomFilters.owner_filter))
+
+application.add_handler(CommandHandler(
+    BotCommands.ExecHelpCommand, exechelp, filters=CustomFilters.owner_filter))
