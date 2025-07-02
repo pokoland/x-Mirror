@@ -35,6 +35,8 @@ from bot.modules import (
 
 # Variable globale pour le serveur
 web_server = None
+# Événement global pour la gestion d'arrêt
+stop_event = asyncio.Event()
 
 async def stats(update, context):
     currentTime = get_readable_time(time.time() - botStartTime)
@@ -212,23 +214,28 @@ async def run_telegram_bot():
 async def run_pyrogram_bot():
     await app.start()
     LOGGER.info("Pyrogram démarré")
-    await idle()
+    # Utilisation d'une simple attente au lieu de idle()
+    await stop_event.wait()
 
 async def shutdown(signame=None):
     LOGGER.info(f"Reçu signal {signame}, arrêt en cours...")
+    global web_server
+
+    # Déclencher l'événement d'arrêt
+    stop_event.set()
 
     # Arrêt du bot Telegram
     if application.updater and application.updater.running:
         await application.updater.stop()
-    await application.stop()
-    await application.shutdown()
+    if application.running:
+        await application.stop()
+        await application.shutdown()
 
     # Arrêt de Pyrogram
     if app.is_initialized:
         await app.stop()
 
     # Fermer le serveur web
-    global web_server
     if IS_VPS and web_server:
         web_server.close()
         await web_server.wait_closed()
@@ -246,12 +253,6 @@ async def shutdown(signame=None):
             pass
     if nox:
         nox.kill()
-
-    # Annuler toutes les tâches asyncio
-    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
 
     LOGGER.info("Arrêt complet réussi")
     sys.exit(0)
@@ -325,10 +326,12 @@ if __name__ == '__main__':
 
     try:
         loop.run_until_complete(main())
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         LOGGER.info("Bot arrêté par l'utilisateur")
     except Exception as e:
         LOGGER.error(f"Erreur inattendue: {e}")
     finally:
-        loop.run_until_complete(shutdown())
+        # Exécuter la procédure d'arrêt dans la boucle
+        if not stop_event.is_set():
+            loop.run_until_complete(shutdown())
         loop.close()
