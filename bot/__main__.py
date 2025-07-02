@@ -213,7 +213,7 @@ def main():
     dispatcher.add_handler(stats_handler)
     dispatcher.add_handler(log_handler)
 
-    updater.start_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+    updater.run_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
     LOGGER.info("Bot démarré !")
     updater.idle()
 
