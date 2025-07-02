@@ -178,31 +178,54 @@ async def bot_help(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(button.build_menu(1))
     await sendMarkup(help_string, context.bot, update, reply_markup)
 
+async def startup_tasks():
+    """Exécute les tâches de démarrage après l'initialisation du bot"""
+    if IS_VPS:
+        await start_server_async(PORT)
+
+    if os.path.isfile(".restartmsg"):
+        with open(".restartmsg") as f:
+            chat_id, msg_id = map(int, f)
+        await bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id)
+        os.remove(".restartmsg")
+    elif OWNER_ID:
+        try:
+            text = "<b>Bot redémarré !</b>"
+            await bot.send_message(chat_id=OWNER_ID, text=text, parse_mode='HTML')
+            if AUTHORIZED_CHATS:
+                for i in AUTHORIZED_CHATS:
+                    await bot.send_message(chat_id=i, text=text, parse_mode='HTML')
+        except Exception as e:
+            LOGGER.warning(e)
+
 def main():
     fs_utils.start_cleanup()
-    async def startup_tasks():
-        if IS_VPS:
-            await start_server_async(PORT)
 
-        if os.path.isfile(".restartmsg"):
-            with open(".restartmsg") as f:
-                chat_id, msg_id = map(int, f)
-            await bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id)
-            os.remove(".restartmsg")
-        elif OWNER_ID:
-            try:
-                text = "<b>Bot redémarré !</b>"
-                await bot.send_message(chat_id=OWNER_ID, text=text, parse_mode='HTML')
-                if AUTHORIZED_CHATS:
-                    for i in AUTHORIZED_CHATS:
-                        await bot.send_message(chat_id=i, text=text, parse_mode='HTML')
-            except Exception as e:
-                LOGGER.warning(e)
+    loop = asyncio.get_event_loop()
 
-    updater.run_polling(
-        drop_pending_updates=IGNORE_PENDING_REQUESTS,
-        post_init=startup_tasks,
-    )
+    if IS_VPS:
+        loop.run_until_complete(start_server_async(PORT))
+
+    start_handler = CommandHandler(BotCommands.StartCommand, start)
+    ping_handler = CommandHandler(BotCommands.PingCommand, ping)
+    restart_handler = CommandHandler(BotCommands.RestartCommand, restart)
+    help_handler = CommandHandler(BotCommands.HelpCommand, bot_help)
+    stats_handler = CommandHandler(BotCommands.StatsCommand, stats)
+    log_handler = CommandHandler(BotCommands.LogCommand, log)
+
+    dispatcher.add_handler(start_handler)
+    dispatcher.add_handler(ping_handler)
+    dispatcher.add_handler(restart_handler)
+    dispatcher.add_handler(help_handler)
+    dispatcher.add_handler(stats_handler)
+    dispatcher.add_handler(log_handler)
+
+    LOGGER.info("Démarrage du bot...")
+
+    asyncio.ensure_future(startup_tasks())
+
+    updater.run_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+    LOGGER.info("Bot démarré !")
 
 if __name__ == '__main__':
     main()
