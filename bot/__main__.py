@@ -45,7 +45,9 @@ async def start(update: Update, context: CallbackContext):
     buttons.buildbutton("Groupe", "https://t.me/mirrorLeechTelegramBot")
     reply_markup = InlineKeyboardMarkup(buttons.build_menu(2))
 
-    if await CustomFilters.authorized_user(update) or await CustomFilters.authorized_chat(update):
+    user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
+    if user_id == OWNER_ID or user_id in AUTHORIZED_CHATS or chat_id in AUTHORIZED_CHATS:
         start_string = f'''
 Ce bot peut copier tous vos liens vers Google Drive !
 Tapez /{BotCommands.HelpCommand} pour obtenir la liste des commandes disponibles
@@ -76,7 +78,11 @@ async def ping(update: Update, context: CallbackContext):
     start_time = int(round(time.time() * 1000))
     reply = await sendMessage("Début du ping", context.bot, update)
     end_time = int(round(time.time() * 1000))
-    await editMessage(f'{end_time - start_time} ms', reply)
+    await context.bot.edit_message_text(
+        chat_id=reply.chat_id,
+        message_id=reply.message_id,
+        text=f'{end_time - start_time} ms'
+    )
 
 async def log(update: Update, context: CallbackContext):
     await sendLogFile(context.bot, update)
@@ -201,9 +207,8 @@ async def startup_tasks():
 def main():
     fs_utils.start_cleanup()
 
-    loop = asyncio.get_event_loop()
-
     if IS_VPS:
+        loop = asyncio.get_event_loop()
         loop.run_until_complete(start_server_async(PORT))
 
     start_handler = CommandHandler(BotCommands.StartCommand, start)
@@ -221,9 +226,6 @@ def main():
     dispatcher.add_handler(log_handler)
 
     LOGGER.info("Démarrage du bot...")
-
-    asyncio.ensure_future(startup_tasks())
-
     updater.run_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
     LOGGER.info("Bot démarré !")
 
