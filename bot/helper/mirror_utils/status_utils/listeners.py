@@ -1,6 +1,6 @@
 class MirrorListeners:
-    def __init__(self, context, update):
-        self.bot = context
+    def __init__(self, update, context):
+        self.bot = context.bot  
         self.update = update
         self.message = update.message
         self.uid = self.message.message_id
@@ -10,7 +10,7 @@ class MirrorListeners:
 
     def onDownloadProgress(self):
         raise NotImplementedError
-    
+
     def onDownloadComplete(self):
         raise NotImplementedError
 

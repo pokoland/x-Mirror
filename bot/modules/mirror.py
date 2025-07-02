@@ -11,6 +11,7 @@ from bot.helper.mirror_utils.download_utils.aria2_download import AriaDownloadHe
 from bot.helper.mirror_utils.download_utils.mega_downloader import MegaDownloadHelper
 from bot.helper.mirror_utils.download_utils.qbit_downloader import QbitTorrent
 from bot.helper.mirror_utils.download_utils.direct_link_generator import direct_link_generator
+from bot.helper.mirror_utils.download_utils.telegram_downloader import TelegramDownloadHelper
 from bot.helper.mirror_utils.status_utils import listeners
 from bot.helper.mirror_utils.status_utils.extract_status import ExtractStatus
 from bot.helper.mirror_utils.status_utils.zip_status import ZipStatus
