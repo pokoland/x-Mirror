@@ -180,21 +180,26 @@ async def bot_help(update: Update, context: CallbackContext):
 
 def main():
     fs_utils.start_cleanup()
+
+    # Créer une nouvelle boucle d'événements
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     if IS_VPS:
-        asyncio.get_event_loop().run_until_complete(start_server_async(PORT))
+        loop.run_until_complete(start_server_async(PORT))
 
     if os.path.isfile(".restartmsg"):
         with open(".restartmsg") as f:
             chat_id, msg_id = map(int, f)
-        bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id)
+        loop.run_until_complete(bot.edit_message_text("Redémarré avec succès !", chat_id, msg_id))
         os.remove(".restartmsg")
     elif OWNER_ID:
         try:
             text = "<b>Bot redémarré !</b>"
-            asyncio.run(bot.send_message(chat_id=OWNER_ID, text=text, parse_mode='HTML'))
+            loop.run_until_complete(bot.send_message(chat_id=OWNER_ID, text=text, parse_mode='HTML'))
             if AUTHORIZED_CHATS:
                 for i in AUTHORIZED_CHATS:
-                    asyncio.run(bot.send_message(chat_id=i, text=text, parse_mode='HTML'))
+                    loop.run_until_complete(bot.send_message(chat_id=i, text=text, parse_mode='HTML'))
         except Exception as e:
             LOGGER.warning(e)
 
@@ -213,9 +218,13 @@ def main():
     dispatcher.add_handler(stats_handler)
     dispatcher.add_handler(log_handler)
 
-    updater.run_polling(drop_pending_updates=IGNORE_PENDING_REQUESTS)
+    # Démarrer le bot avec la boucle d'événements
+    LOGGER.info("Démarrage du bot...")
+    updater.run_polling(
+        drop_pending_updates=IGNORE_PENDING_REQUESTS,
+        stop_signals=None,  # Désactiver la gestion des signaux
+    )
     LOGGER.info("Bot démarré !")
-    updater.idle()
 
 if __name__ == '__main__':
     main()
